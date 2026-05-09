@@ -1,0 +1,10 @@
+[paths]
+input_dir = "input"
+output_dir = "output"
+darktable_cli_path = "C:\\Program Files\\darktable\\bin\\darktable-cli"
+
+[processing]
+color_temperature = 5000  # Adjusts color temperature of the Milky Way. Lower = cooler/bluer, Higher = warmer/redder.
+exposure_boost_ev = 0.2  # Increases the exposure specifically within the Milky Way structures. Acts on the raw 16-bit linear data before any contrast enhancement happens. This essentially lifts the shadows and feeds a brighter image into the CLAHE (contrast enhancement) algorithm. Pushing this up will force the script to pull more structural details out of the dark dust clouds, but doing so naturally increases noise.
+clahe_clip_limit = 1.5  # Controls local contrast enhancement. Higher values pull out more detail but can add noise.
+milky_way_brightness_multiplier = 0.95  # Fine-tunes the final brightness of the Milky Way (1.0 = no change, < 1.0 = darker, > 1.0 = brighter). Acts as a "dimmer switch" on the final result, after the contrast has been enhanced and only within the Milky Way mask. This scales the pixels linearly. It does not pull new detail out of the shadows; it just makes whatever detail was generated brighter or darker.

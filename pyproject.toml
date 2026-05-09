@@ -1,0 +1,14 @@
+[project]
+name = "auto-milky-way"
+version = "0.1.0"
+description = "Auto Milky Way Image Processor"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "imageio>=2.37.3",
+    "numpy>=2.4.4",
+    "opencv-python>=4.13.0.92",
+    "pydantic>=2.13.4",
+    "scipy>=1.17.1",
+    "tifffile>=2026.5.2",
+]
