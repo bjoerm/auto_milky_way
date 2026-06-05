@@ -1,10 +1,14 @@
-import subprocess
 import os
+import shutil
+import subprocess
 from pathlib import Path
+
 import cv2
 import numpy as np
 import tifffile
+
 from src.config import AppConfig
+
 
 class DarktableProcessor:
     def __init__(self, config: AppConfig):
@@ -105,7 +109,7 @@ class DarktableProcessor:
         enhanced_float[:,:,2] = np.clip(enhanced_float[:,:,2] * (1.0 + (b_scale - 1.0) * mw_mask), 0, 255) # Blue
         enhanced_float[:,:,0] = np.clip(enhanced_float[:,:,0] * (1.0 + (r_scale - 1.0) * mw_mask), 0, 255) # Red
         
-        return enhanced_float.astype(np.uint8)
+        return enhanced_float.astype(np.uint8), mw_mask
 
     def process_image(self, raw_path: Path, output_path: Path) -> bool:
         print(f"Processing {raw_path.name}...")
@@ -142,10 +146,40 @@ class DarktableProcessor:
         mask_float = np.stack([mask_float]*3, axis=2) # 3 channels
         
         # 4. Enhance Sky
-        enhanced_sky = self.enhance_milky_way(img_rgb_16)
+        enhanced_sky, mw_mask = self.enhance_milky_way(img_rgb_16)
         
         # 5. Foreground (just convert original to 8-bit)
         foreground = (img_rgb_16 / 256).astype(np.uint8)
+
+        # 5.5. Save debug detection image
+        try:
+            debug_dir = output_path.parent / "debug"
+            debug_dir.mkdir(exist_ok=True)
+            
+            combined_mask = mw_mask * mask_float[:, :, 0]
+            debug_img = foreground.copy()
+            
+            # Semi-transparent red overlay on detected Milky Way structures
+            red_overlay = np.zeros_like(debug_img)
+            red_overlay[:] = [255, 0, 0] # RGB Red
+            
+            debug_img = (debug_img.astype(np.float32) * (1.0 - 0.4 * combined_mask[:, :, np.newaxis]) + 
+                         red_overlay.astype(np.float32) * (0.4 * combined_mask[:, :, np.newaxis])).astype(np.uint8)
+            
+            # Threshold combined mask to get clean binary mask for contour bounding boxes
+            binary_mw = (combined_mask > 0.1).astype(np.uint8) * 255
+            contours, _ = cv2.findContours(binary_mw, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            for contour in contours:
+                if cv2.contourArea(contour) > 5000:
+                    x, y, w, h = cv2.boundingRect(contour)
+                    cv2.rectangle(debug_img, (x, y), (x + w, y + h), (255, 0, 0), 5)
+            
+            debug_bgr = cv2.cvtColor(debug_img, cv2.COLOR_RGB2BGR)
+            debug_path = debug_dir / f"{raw_path.stem}_debug.jpg"
+            cv2.imwrite(str(debug_path), debug_bgr, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+        except Exception as e:
+            print(f"Warning: Failed to generate/save debug image: {e}")
         
         # 6. Blend
         final_img = (enhanced_sky * mask_float + foreground * (1.0 - mask_float)).astype(np.uint8)
@@ -181,7 +215,18 @@ class DarktableProcessor:
         if not input_dir.exists():
             input_dir.mkdir(parents=True, exist_ok=True)
             
-        if not output_dir.exists():
+        # Clean output folder on start
+        if output_dir.exists():
+            print(f"Cleaning existing files in output directory: {output_dir}")
+            for item in output_dir.iterdir():
+                try:
+                    if item.is_file():
+                        item.unlink()
+                    elif item.is_dir():
+                        shutil.rmtree(item)
+                except Exception as e:
+                    print(f"Warning: could not delete {item}: {e}")
+        else:
             output_dir.mkdir(parents=True, exist_ok=True)
 
         raw_files = list(set(list(input_dir.glob("*.arw")) + list(input_dir.glob("*.ARW"))))

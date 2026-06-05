@@ -7,6 +7,7 @@ sys.path.append(str(Path(__file__).parent.parent))
 from src.config import load_config
 from src.processor import DarktableProcessor
 
+
 def main():
     print("Auto Milky Way - Starting Processor")
     config = load_config()
